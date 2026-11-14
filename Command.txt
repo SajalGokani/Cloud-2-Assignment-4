@@ -1,0 +1,37 @@
+# ========================================================
+# CLOUD DEVELOPMENT II - ASSESSMENT PART 4 COMMANDS
+# Student: Sajal Gokani
+# ========================================================
+
+# 1. Start LocalStack container
+docker start localstack_main
+
+# 2. Create S3 bucket 'coupons' with private ACL
+./t4_create_s3_bucket.sh
+
+# 3. Apply MFA delete restriction bucket policy
+./t4_add_bucket_policy.sh
+
+# 4. Deploy coupons_import Lambda & /coupons/import API Gateway endpoint
+./t4_update_coupons_import_lambda.sh
+
+# 5. Deploy coupons_import_presigned_url Lambda & /coupons/import_presigned_url endpoint
+./t4_update_coupons_import_presigned_url_lambda.sh
+
+# 6. Test direct coupon import via /coupons/import
+API_ID=$(cat api_id.txt)
+curl -s -X POST "http://localhost:4566/restapis/${API_ID}/prod/_user_request_/coupons/import" \
+  -H "Content-Type: application/json" \
+  -d '{"coupon_id": "319326de971100158f6fa0daeec978fbalf17e4b", "discount": "25%", "description": "Winter Clearance Coupon"}'
+
+# 7. Request pre-signed URL for coupon.json and upload via HTTP PUT
+PRESIGNED_URL=$(curl -s -X POST "http://localhost:4566/restapis/${API_ID}/prod/_user_request_/coupons/import_presigned_url" \
+  -H "Content-Type: application/json" \
+  -d '{"filename": "coupon.json"}' | python3 -c "import sys, json; print(json.load(sys.stdin)['presigned_url'])")
+
+curl -i -X PUT "$PRESIGNED_URL" \
+  -H "Content-Type: application/json" \
+  --upload-file coupon.json
+
+# 8. Verify objects in S3 bucket
+awslocal s3 ls s3://coupons/
